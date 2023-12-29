@@ -18,6 +18,7 @@ HardwareSerial GPSSerial(1);
 
 unsigned long lastAction = 0;
 int actionInterval = 3000;
+unsigned long lastGPSRead = 0;
 
 uint8_t deviceAddress = 0xA1;
 uint8_t echoAddress = 0xEE;
@@ -55,11 +56,15 @@ void setup()
 
 void loop()
 {
-    if(millis() - lastAction > actionInterval) {
-        lastAction = millis(); 
 
+    if(millis() - lastGPSRead > 1000) {
+        lastGPSRead = millis();
         if(GPSSerial.available())
             gps.encode(GPSSerial.read());
+    }
+
+    if(millis() - lastAction > actionInterval) {
+        lastAction = millis(); 
 
         sendMessage(echoAddress, "abc");   
     }
@@ -68,24 +73,7 @@ void loop()
     if(packetSize)
         onReceive(packetSize);
 
-    // Serial.print("Latitude  : ");
-    // Serial.println(gps.location.lat(), 5);
-    // Serial.print("Longitude : ");
-    // Serial.println(gps.location.lng(), 4);
-    // Serial.print("Satellites: ");
-    // Serial.println(gps.satellites.value());
-    // Serial.print("Altitude  : ");
-    // Serial.print(gps.altitude.feet() / 3.2808);
-    // Serial.println("M");
-    // Serial.print("Time      : ");
-    // Serial.print(gps.time.hour());
-    // Serial.print(":");
-    // Serial.print(gps.time.minute());
-    // Serial.print(":");
-    // Serial.println(gps.time.second());
-    // Serial.println("**********************");
-
-    if(millis() > 5000 && gps.charsProcessed() < 10)
+    if(millis() > (1000 * 60 * 5) && gps.charsProcessed() < 10)
         Serial.println(F("No GPS data received: check wiring"));
 }
 
@@ -117,15 +105,13 @@ void sendMessage(uint8_t to, String msg)
     memcpy(buffer + 8, &longitude, sizeof(double));
 
     LoRa.beginPacket();         // start packet
-
-    LoRa.write(to);                     // add destination address
-    LoRa.write(deviceAddress);          // add sender address
-    LoRa.write(buffer, sizeof(buffer)); // add location (latitude and longitude)
-    LoRa.write(msgCount);               // add message ID
-    LoRa.write(msg.length());           // add payload length
-    LoRa.print(msg);                    // add payload
-    
-    LoRa.endPacket(true);       // finish packet and send it 
+    LoRa.write(to);                     // add destination address  1 Byte
+    LoRa.write(deviceAddress);          // add sender address 1 Byte
+    LoRa.write(buffer, sizeof(buffer)); // add location (latitude and longitude) 16 Byte
+    LoRa.write(msgCount);               // add message ID 1 Byte
+    LoRa.write(msg.length());           // add payload length 1 Byte
+    LoRa.print(msg);                    // add payload 1 Byte
+    LoRa.endPacket(true);       // finish packet and send it; total bytes = 21 Bytes
 
     Serial.println("[sendMessage] to 0x"+ String(to, HEX) +" - msgId: "+ msgCount);
     Serial.println("[sendMessage] packet loss: "+ String(msgCount - echoCount));
@@ -185,8 +171,8 @@ void onReceive(int packetSize)
     // if message is for this device, or broadcast, print details:
     Serial.println("Received from: 0x"+ String(fromAdr, HEX));
     Serial.println("Sent to: 0x"+ String(toAdr, HEX));
-    Serial.println("Latitude: "+ String(latitude, 6));
-    Serial.println("Longitude: "+ String(longitude, 6));
+    Serial.println("Latitude: "+ String(latitude, 7));
+    Serial.println("Longitude: "+ String(longitude, 7));
     Serial.println("Message ID: "+ String(msgId));
     Serial.println("Message length: "+ String(msgLength));
     Serial.println("Message: "+ msg);
