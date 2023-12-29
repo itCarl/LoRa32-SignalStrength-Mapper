@@ -133,7 +133,7 @@ void onReceive(int packetSize)
     // location lat (from latitude)
     // location lng (from longitude)
     // message id
-    // message length - required since cb is used
+    // message length
     // message
 
     // read incoming packet
